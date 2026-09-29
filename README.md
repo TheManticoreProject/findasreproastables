@@ -44,11 +44,12 @@ Usage: FindAsreproastables --domain <string> --username <string> [--password <st
 ```
 
 `find` is the default mode and preserves the original DN listing. `request` first finds
-accounts through LDAP, then sends an RC4-only AS-REQ for each account. Standard output
-contains only hashcat mode 18200 hashes, one per line. Failures go to standard error;
-the command exits nonzero if any account fails. A domain where RC4 is disabled cannot
-produce hashcat AS-REP hashes with this mode. The `-H/--hashes` option supplies NT/LM
-hashes for LDAP authentication; it does not select hash output.
+accounts through LDAP, then offers RC4 as the session-key etype in an AS-REQ for each
+account. Standard output contains only hashcat mode 18200 hashes, one per line. Failures
+go to standard error; the command exits nonzero if any account fails. The KDC can still
+encrypt an AS-REP with an AES account key, which hashcat mode 18200 does not accept.
+Only accounts whose replies have RC4 encrypted parts produce hash lines. The `-H/--hashes`
+option supplies NT/LM hashes for LDAP authentication; it does not select hash output.
 
 ## Demonstration
 
