@@ -5,27 +5,45 @@ import (
 
 	"github.com/TheManticoreProject/Manticore/network/ldap"
 	"github.com/TheManticoreProject/Manticore/network/ldap/ldap_attributes"
+	goldap "github.com/go-ldap/ldap/v3"
 )
 
-func GetAsreproastables(ldapSession ldap.Session) ([]string, error) {
-	results := []string{}
+// Account identifies an LDAP account that can be targeted by an AS-REQ.
+type Account struct {
+	DN       string
+	Username string
+}
 
-	query := "(&"
-	query += "(|"
-	query += "(objectClass=computer)"
-	query += "(objectClass=person)"
-	query += "(objectClass=user)"
-	query += ")"
-	query += fmt.Sprintf("(userAccountControl:1.2.840.113556.1.4.803:=%d)", ldap_attributes.UAF_DONT_REQ_PREAUTH)
-	query += ")"
-	searchResults, err := ldapSession.QueryWholeSubtree("", query, []string{})
+func asreproastableQuery() string {
+	return fmt.Sprintf("(&(|(objectClass=computer)(objectClass=person)(objectClass=user))(userAccountControl:1.2.840.113556.1.4.803:=%d))", ldap_attributes.UAF_DONT_REQ_PREAUTH)
+}
+
+func accountsFromEntries(entries []*goldap.Entry) []Account {
+	accounts := make([]Account, 0, len(entries))
+	for _, entry := range entries {
+		accounts = append(accounts, Account{DN: entry.DN, Username: entry.GetAttributeValue("sAMAccountName")})
+	}
+	return accounts
+}
+
+// GetAsreproastableAccounts returns both the DN for display and the account
+// name needed for the Kerberos request.
+func GetAsreproastableAccounts(ldapSession *ldap.Session) ([]Account, error) {
+	entries, err := ldapSession.QueryWholeSubtree("", asreproastableQuery(), []string{"sAMAccountName"})
 	if err != nil {
-		return results, fmt.Errorf("error performing LDAP search: %s", err)
+		return nil, fmt.Errorf("error performing LDAP search: %w", err)
 	}
+	return accountsFromEntries(entries), nil
+}
 
-	for _, entry := range searchResults {
-		results = append(results, entry.DN)
+func GetAsreproastables(ldapSession ldap.Session) ([]string, error) {
+	accounts, err := GetAsreproastableAccounts(&ldapSession)
+	if err != nil {
+		return nil, err
 	}
-
+	results := make([]string, 0, len(accounts))
+	for _, account := range accounts {
+		results = append(results, account.DN)
+	}
 	return results, nil
 }
